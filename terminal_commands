@@ -1,0 +1,15 @@
+# Create a new Vite project with React
+npm create vite@latest csv-enhancer-frontend -- --template react
+
+# Navigate to the project directory
+cd csv-enhancer-frontend
+
+# Install dependencies
+npm install
+
+# Add Tailwind CSS
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+
+# Add Axios for API calls
+npm install axios 

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Enhancer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .hidden {
+            display: none;
+        }
+        .config-card {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">CSV Enhancer</h1>
+        
+        <!-- File Upload Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Step 1: Upload CSV File</h5>
+            </div>
+            <div class="card-body">
+                <form id="upload-form">
+                    <div class="mb-3">
+                        <label for="csvFile" class="form-label">Select CSV file</label>
+                        <input class="form-control" type="file" id="csvFile" accept=".csv">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Upload</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Configuration Section -->
+        <div id="config-section" class="hidden">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Step 2: Configure Enhancement</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="nav nav-tabs" id="configTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="description-tab" data-bs-toggle="tab" data-bs-target="#description" type="button" role="tab">Natural Language</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="manual-tab" data-bs-toggle="tab" data-bs-target="#manual" type="button" role="tab">Manual Configuration</button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content mt-3" id="configTabContent">
+                        <!-- Natural Language Configuration -->
+                        <div class="tab-pane fade show active" id="description" role="tabpanel">
+                            <div class="mb-3">
+                                <label for="enhancementDescription" class="form-label">Describe what you want to do with this CSV</label>
+                                <textarea class="form-control" id="enhancementDescription" rows="3" placeholder="Example: Fill in missing values in the 'Description' column based on the 'Title' column. Categorize items in the 'Type' column into one of: Electronics, Clothing, Food, or Other."></textarea>
+                            </div>
+                            <button id="generate-config-btn" class="btn btn-primary">Generate Configuration</button>
+                        </div>
+                        
+                        <!-- Manual Configuration -->
+                        <div class="tab-pane fade" id="manual" role="tabpanel">
+                            <div id="columns-config">
+                                <!-- Column configuration cards will be added here dynamically -->
+                            </div>
+                            <button id="add-column-btn" class="btn btn-outline-secondary mb-3">+ Add Column</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Configuration Preview -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Configuration Preview</h5>
+                </div>
+                <div class="card-body">
+                    <pre id="config-preview" class="bg-light p-3 rounded"></pre>
+                </div>
+            </div>
+            
+            <!-- Process Button -->
+            <button id="process-btn" class="btn btn-success btn-lg mb-4">Process CSV</button>
+            
+            <!-- Results Section -->
+            <div id="results-section" class="hidden">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Results</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="processing-status"></div>
+                        <div id="download-section" class="hidden mt-3">
+                            <a id="download-link" class="btn btn-primary">Download Enhanced CSV</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Column Configuration Template -->
+    <template id="column-config-template">
+        <div class="card config-card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="column-name mb-0">Column Name</h6>
+                    <button class="btn btn-sm btn-outline-danger remove-column-btn">Remove</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Context Columns</label>
+                    <select class="form-select context-columns" multiple>
+                        <!-- Options will be added dynamically -->
+                    </select>
+                    <div class="form-text">Select columns to use as context for enhancement</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Batch Size</label>
+                    <input type="number" class="form-control batch-size" min="1" max="50" value="10">
+                    <div class="form-text">Number of rows to process at once</div>
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input ignore-valued" type="checkbox" value="">
+                    <label class="form-check-label">
+                        Ignore rows with existing values
+                    </label>
+                </div>
+            </div>
+        </div>
+    </template>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let currentFilename = '';
+        let csvColumns = [];
+        let currentConfig = {
+            column_context: {},
+            batch_sizes: {},
+            ignore_valued_columns: {}
+        };
+        
+        // DOM elements
+        const uploadForm = document.getElementById('upload-form');
+        const configSection = document.getElementById('config-section');
+        const columnsConfigSection = document.getElementById('columns-config');
+        const configPreview = document.getElementById('config-preview');
+        const generateConfigBtn = document.getElementById('generate-config-btn');
+        const addColumnBtn = document.getElementById('add-column-btn');
+        const processBtn = document.getElementById('process-btn');
+        const resultsSection = document.getElementById('results-section');
+        const processingStatus = document.getElementById('processing-status');
+        const downloadSection = document.getElementById('download-section');
+        const downloadLink = document.getElementById('download-link');
+        
+        // Event listeners
+        uploadForm.addEventListener('submit', handleFileUpload);
+        generateConfigBtn.addEventListener('click', generateConfigFromDescription);
+        addColumnBtn.addEventListener('click', addColumnConfig);
+        processBtn.addEventListener('click', processCSV);
+        
+        // Handle file upload
+        async function handleFileUpload(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a CSV file');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentFilename = data.filename;
+                    csvColumns = data.columns;
+                    
+                    // Show configuration section
+                    configSection.classList.remove('hidden');
+                    
+                    // Initialize manual configuration
+                    initializeManualConfig();
+                    
+                    // Update config preview
+                    updateConfigPreview();
+                } else {
+                    alert(data.error || 'Error uploading file');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error uploading file');
+            }
+        }
+        
+        // Generate configuration from description
+        async function generateConfigFromDescription() {
+            const description = document.getElementById('enhancementDescription').value;
+            
+            if (!description) {
+                alert('Please enter a description');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/generate-config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        description,
+                        columns: csvColumns
+                    })
+                });
+                
+                const data = await response.json();
+                currentConfig = data.config;
+                
+                // Update manual configuration UI
+                updateManualConfigUI();
+                
+                // Update config preview
+                updateConfigPreview();
+                
+                // Switch to manual tab to show the generated config
+                const manualTab = document.getElementById('manual-tab');
+                bootstrap.Tab.getOrCreateInstance(manualTab).show();
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error generating configuration');
+            }
+        }
+        
+        // Initialize manual configuration
+        function initializeManualConfig() {
+            // Clear existing configuration
+            columnsConfigSection.innerHTML = '';
+            
+            // Create default configuration
+            currentConfig = {
+                column_context: {},
+                batch_sizes: {},
+                ignore_valued_columns: {}
+            };
+            
+            // Add first column by default
+            if (csvColumns.length > 0) {
+                addColumnToConfig(csvColumns[0]);
+            }
+        }
+        
+        // Update manual configuration UI based on current config
+        function updateManualConfigUI() {
+            // Clear existing configuration
+            columnsConfigSection.innerHTML = '';
+            
+            // Add each column from the current config
+            for (const column in currentConfig.column_context) {
+                addColumnToConfig(column);
+            }
+        }
+        
+        // Add a column to the configuration
+        function addColumnConfig() {
+            // Get columns that are not yet configured
+            const unconfiguredColumns = csvColumns.filter(
+                column => !currentConfig.column_context[column]
+            );
+            
+            if (unconfiguredColumns.length === 0) {
+                alert('All columns are already configured');
+                return;
+            }
+            
+            addColumnToConfig(unconfiguredColumns[0]);
+        }
+        
+        // Add a specific column to the configuration
+        function addColumnToConfig(columnName) {
+            // Clone the template
+            const template = document.getElementById('column-config-template');
+            const columnConfig = template.content.cloneNode(true);
+            
+            // Set column name
+            columnConfig.querySelector('.column-name').textContent = columnName;
+            
+            // Populate context columns dropdown
+            const contextSelect = columnConfig.querySelector('.context-columns');
+            csvColumns.forEach(column => {
+                const option = document.createElement('option');
+                option.value = column;
+                option.textContent = column;
+                
+                // Select if in current config
+                if (currentConfig.column_context[columnName] && 
+                    currentConfig.column_context[columnName].includes(column)) {
+                    option.selected = true;
+                }
+                
+                contextSelect.appendChild(option);
+            });
+            
+            // Set batch size
+            const batchSizeInput = columnConfig.querySelector('.batch-size');
+            batchSizeInput.value = currentConfig.batch_sizes[columnName] || 10;
+            
+            // Set ignore valued checkbox
+            const ignoreValuedCheckbox = columnConfig.querySelector('.ignore-valued');
+            ignoreValuedCheckbox.checked = currentConfig.ignore_valued_columns[columnName] || false;
+            
+            // Add event listeners
+            columnConfig.querySelector('.remove-column-btn').addEventListener('click', function() {
+                removeColumnConfig(this, columnName);
+            });
+            
+            contextSelect.addEventListener('change', function() {
+                updateColumnConfig(columnName);
+            });
+            
+            batchSizeInput.addEventListener('change', function() {
+                updateColumnConfig(columnName);
+            });
+            
+            ignoreValuedCheckbox.addEventListener('change', function() {
+                updateColumnConfig(columnName);
+            });
+            
+            // Add to the UI
+            columnsConfigSection.appendChild(columnConfig);
+            
+            // Initialize in the config if not already there
+            if (!currentConfig.column_context[columnName]) {
+                currentConfig.column_context[columnName] = [];
+                currentConfig.batch_sizes[columnName] = 10;
+                currentConfig.ignore_valued_columns[columnName] = false;
+            }
+            
+            // Update config preview
+            updateConfigPreview();
+        }
+        
+        // Remove a column from the configuration
+        function removeColumnConfig(button, columnName) {
+            // Remove from UI
+            const card = button.closest('.config-card');
+            card.remove();
+            
+            // Remove from config
+            delete currentConfig.column_context[columnName];
+            delete currentConfig.batch_sizes[columnName];
+            delete currentConfig.ignore_valued_columns[columnName];
+            
+            // Update config preview
+            updateConfigPreview();
+        }
+        
+        // Update a column's configuration
+        function updateColumnConfig(columnName) {
+            // Find the card for this column
+            const cards = document.querySelectorAll('.config-card');
+            let card;
+            
+            for (const c of cards) {
+                if (c.querySelector('.column-name').textContent === columnName) {
+                    card = c;
+                    break;
+                }
+            }
+            
+            if (!card) return;
+            
+            // Get values from the UI
+            const contextSelect = card.querySelector('.context-columns');
+            const selectedContexts = Array.from(contextSelect.selectedOptions).map(option => option.value);
+            
+            const batchSize = parseInt(card.querySelector('.batch-size').value) || 10;
+            const ignoreValued = card.querySelector('.ignore-valued').checked;
+            
+            // Update the configuration
+            currentConfig.column_context[columnName] = selectedContexts;
+            currentConfig.batch_sizes[columnName] = batchSize;
+            currentConfig.ignore_valued_columns[columnName] = ignoreValued;
+            
+            // Update config preview
+            updateConfigPreview();
+        }
+        
+        // Update the configuration preview
+        function updateConfigPreview() {
+            configPreview.textContent = JSON.stringify(currentConfig, null, 2);
+        }
+        
+        // Process the CSV file
+        async function processCSV() {
+            if (!currentFilename) {
+                alert('Please upload a CSV file first');
+                return;
+            }
+            
+            if (Object.keys(currentConfig.column_context).length === 0) {
+                alert('Please configure at least one column');
+                return;
+            }
+            
+            // Show results section
+            resultsSection.classList.remove('hidden');
+            processingStatus.innerHTML = '<div class="alert alert-info">Processing your CSV file... This may take a few minutes.</div>';
+            
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        filename: currentFilename,
+                        config: currentConfig
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    processingStatus.innerHTML = '<div class="alert alert-success">Processing complete!</div>';
+                    downloadSection.classList.remove('hidden');
+                    downloadLink.href = `/download/${data.result_file}`;
+                } else {
+                    processingStatus.innerHTML = `<div class="alert alert-danger">Error: ${data.error || 'Unknown error'}</div>`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                processingStatus.innerHTML = '<div class="alert alert-danger">Error processing file</div>';
+            }
+        }
+    </script>
+</body>
+</html> 
