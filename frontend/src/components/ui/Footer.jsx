@@ -50,7 +50,7 @@ const Footer = () => {
             <div className="flex space-x-4 mt-2 justify-center md:justify-end">
               <a href="https://buymeacoffee.com/cyrexe" className="hover:text-blue-400 transition-colors" target="_blank" rel="noopener noreferrer">Support me</a>
               <a href="https://github.com/cyrexe/data-smith" className="hover:text-blue-400 transition-colors" target="_blank" rel="noopener noreferrer">GitHub</a>
-              <a href="https://www.linkedin.com/in/noel-dengg-746408231/" className="hover:text-blue-400 transition-colors" target="_blank" rel="noopener noreferrer">My awesomeLinkedIn</a>
+              <a href="https://www.linkedin.com/in/noel-dengg-746408231/" className="hover:text-blue-400 transition-colors" target="_blank" rel="noopener noreferrer">My awesome LinkedIn</a>
             </div>
           </div>
         </div>
