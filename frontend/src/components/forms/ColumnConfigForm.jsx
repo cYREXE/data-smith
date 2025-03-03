@@ -29,37 +29,80 @@ const ColumnConfigForm = ({
   const [currentIgnoreValued, setCurrentIgnoreValued] = useState(ignoreValued || false);
   const [currentTransformationInstruction, setCurrentTransformationInstruction] = useState(transformationInstruction || '');
   
-  // Update parent component when values change
+  // Update parent component when values change, but with debounce for text inputs
   useEffect(() => {
     if (onUpdate) {
-      onUpdate(selectedContexts, currentBatchSize, currentIgnoreValued, currentTransformationInstruction);
+      // Use a timeout to debounce updates for transformation instructions
+      const timeoutId = setTimeout(() => {
+        onUpdate(selectedContexts, currentBatchSize, currentIgnoreValued, currentTransformationInstruction);
+      }, 300); // 300ms debounce
+      
+      return () => clearTimeout(timeoutId); // Clean up on unmount or when dependencies change
     }
   }, [selectedContexts, currentBatchSize, currentIgnoreValued, currentTransformationInstruction, onUpdate]);
   
+  // Update local state when props change
+  useEffect(() => {
+    setSelectedContexts(contextColumns || []);
+    setCurrentBatchSize(batchSize || 10);
+    setCurrentIgnoreValued(ignoreValued || false);
+    setCurrentTransformationInstruction(transformationInstruction || '');
+  }, [contextColumns, batchSize, ignoreValued, transformationInstruction]);
+  
   const handleContextChange = (e) => {
-    const options = e.target.options;
-    const selectedValues = [];
+    // Get all selected options from the select element
+    const selectedOptions = Array.from(e.target.selectedOptions);
+    const selectedValues = selectedOptions.map(option => option.value);
     
-    for (let i = 0; i < options.length; i++) {
-      if (options[i].selected) {
-        selectedValues.push(options[i].value);
-      }
-    }
+    console.log('Selected context columns:', selectedValues);
     
+    // Update the state with the new selection
     setSelectedContexts(selectedValues);
   };
   
   const handleBatchSizeChange = (e) => {
     const value = parseInt(e.target.value) || 10;
-    setCurrentBatchSize(Math.min(Math.max(value, 1), 50)); // Clamp between 1 and 50
+    const clampedValue = Math.min(Math.max(value, 1), 50); // Clamp between 1 and 50
+    console.log('Batch size changed:', clampedValue);
+    setCurrentBatchSize(clampedValue);
   };
   
   const handleIgnoreValuedChange = (e) => {
+    console.log('Ignore valued changed:', e.target.checked);
     setCurrentIgnoreValued(e.target.checked);
   };
 
   const handleTransformationInstructionChange = (e) => {
     setCurrentTransformationInstruction(e.target.value);
+  };
+
+  const handleAddAllContextColumns = () => {
+    // Add all available columns as context (except the current column)
+    const allColumnsExceptCurrent = csvColumns.filter(col => col !== columnName);
+    console.log('Adding all context columns:', allColumnsExceptCurrent);
+    setSelectedContexts(allColumnsExceptCurrent);
+  };
+
+  const handleClearContextColumns = () => {
+    // Clear all selected context columns
+    console.log('Clearing all context columns');
+    setSelectedContexts([]);
+  };
+  
+  // Individual column selection handlers for better control
+  const handleColumnClick = (column) => {
+    let newSelection;
+    
+    if (selectedContexts.includes(column)) {
+      // If already selected, remove it
+      newSelection = selectedContexts.filter(c => c !== column);
+    } else {
+      // If not selected, add it
+      newSelection = [...selectedContexts, column];
+    }
+    
+    console.log('Updated context columns:', newSelection);
+    setSelectedContexts(newSelection);
   };
   
   return (
@@ -85,21 +128,51 @@ const ColumnConfigForm = ({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Context Columns
           </label>
-          <select
-            multiple
-            value={selectedContexts}
-            onChange={handleContextChange}
-            className="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2"
-            size={Math.min(csvColumns.length, 5)}
-          >
+          <div className="mb-2 flex space-x-2">
+            <Button 
+              onClick={handleAddAllContextColumns} 
+              variant="outline" 
+              className="text-xs py-1"
+              size="sm"
+            >
+              Select All
+            </Button>
+            <Button 
+              onClick={handleClearContextColumns} 
+              variant="outline" 
+              className="text-xs py-1"
+              size="sm"
+            >
+              Clear All
+            </Button>
+          </div>
+          
+          {/* Replace select with checkboxes for better control */}
+          <div className="max-h-40 overflow-y-auto border border-gray-300 rounded-md p-2">
             {csvColumns.map(column => (
-              <option key={column} value={column}>
-                {column}
-              </option>
+              <div key={column} className="flex items-center mb-1 last:mb-0">
+                <input
+                  type="checkbox"
+                  id={`context-${columnName}-${column}`}
+                  checked={selectedContexts.includes(column)}
+                  onChange={() => handleColumnClick(column)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label 
+                  htmlFor={`context-${columnName}-${column}`}
+                  className="ml-2 block text-sm text-gray-700 cursor-pointer"
+                >
+                  {column}
+                </label>
+              </div>
             ))}
-          </select>
+          </div>
+          
           <p className="mt-1 text-xs text-gray-500">
-            Select columns to use as context for enhancement (hold Ctrl/Cmd to select multiple)
+            Select columns to use as context for enhancement
+          </p>
+          <p className="mt-1 text-xs font-medium text-blue-600">
+            Selected: {selectedContexts.length > 0 ? selectedContexts.join(', ') : 'None'}
           </p>
         </div>
         
@@ -112,7 +185,7 @@ const ColumnConfigForm = ({
             onChange={handleTransformationInstructionChange}
             placeholder="Example: Categorize as 'Edible' or 'Inedible' based on product type"
             className="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2"
-            rows={2}
+            rows={3}
           />
           <p className="mt-1 text-xs text-gray-500">
             Specific instructions for how to transform this column
@@ -124,14 +197,32 @@ const ColumnConfigForm = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Batch Size
             </label>
-            <input
-              type="number"
-              min="1"
-              max="50"
-              value={currentBatchSize}
-              onChange={handleBatchSizeChange}
-              className="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2"
-            />
+            <div className="flex items-center">
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={currentBatchSize}
+                onChange={handleBatchSizeChange}
+                className="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2"
+              />
+              <div className="ml-2 flex space-x-1">
+                <button 
+                  type="button"
+                  onClick={() => setCurrentBatchSize(Math.max(currentBatchSize - 5, 1))}
+                  className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-sm"
+                >
+                  -5
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setCurrentBatchSize(Math.min(currentBatchSize + 5, 50))}
+                  className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-sm"
+                >
+                  +5
+                </button>
+              </div>
+            </div>
             <p className="mt-1 text-xs text-gray-500">
               Number of rows to process at once (1-50)
             </p>
@@ -144,15 +235,22 @@ const ColumnConfigForm = ({
                 type="checkbox"
                 checked={currentIgnoreValued}
                 onChange={handleIgnoreValuedChange}
-                className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                className="focus:ring-blue-500 h-5 w-5 text-blue-600 border-gray-300 rounded"
               />
             </div>
             <div className="ml-3 text-sm">
-              <label htmlFor={`ignore-valued-${columnName}`} className="font-medium text-gray-700">
+              <label 
+                htmlFor={`ignore-valued-${columnName}`} 
+                className="font-medium text-gray-700 cursor-pointer"
+                onClick={() => setCurrentIgnoreValued(!currentIgnoreValued)}
+              >
                 Ignore rows with existing values
               </label>
               <p className="text-gray-500">
                 Skip processing rows that already have values
+              </p>
+              <p className="mt-1 text-xs font-medium text-blue-600">
+                Current setting: {currentIgnoreValued ? 'Yes (will ignore existing values)' : 'No (will process all rows)'}
               </p>
             </div>
           </div>

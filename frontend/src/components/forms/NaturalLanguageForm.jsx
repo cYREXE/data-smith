@@ -5,172 +5,155 @@ import Card from '../ui/Card';
 import { generateConfig } from '../../services/api';
 
 /**
- * Natural language configuration form
+ * Natural language form component
  * @param {Object} props - Component props
- * @param {Array<string>} props.csvColumns - CSV columns
+ * @param {Array} props.csvColumns - CSV columns
  * @param {Function} props.onConfigGenerated - Callback when config is generated
  * @returns {JSX.Element} - NaturalLanguageForm component
  */
 const NaturalLanguageForm = ({ csvColumns, onConfigGenerated }) => {
   const [description, setDescription] = useState('');
-  const [datasetDescription, setDatasetDescription] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showExamples, setShowExamples] = useState(false);
 
-  const examples = [
-    // Column operations
-    "Fill in missing values in the 'Description' column based on the 'Title' column.",
-    "Categorize items in the 'Category' column into one of: Electronics, Clothing, Food, or Other.",
-    "Change the 'Category' column to classify items as either 'Edible' or 'Inedible' based on the product type.",
-    "Generate detailed product descriptions for all items that have short descriptions.",
-    "Standardize the 'Price' column to always have two decimal places.",
-    
-    // New column operations
-    "Create summaries in the 'Summary' column based on the 'Description' column.",
-    "Add a new column named 'Popularity' and classify each item as Low, Moderate, or High based on other attributes.",
-    "Create a new column called 'Recommendation' that suggests related products based on the item description.",
-    "Add a 'Sentiment' column that analyzes product reviews and categorizes them as Positive, Neutral, or Negative.",
-    
-    // Row generation only
-    "Only generate 5 new rows that match the patterns in the existing data.",
-    "Just add 10 new product entries similar to the existing ones without modifying any columns.",
-    "This is a product catalog. Only generate 8 new rows with realistic product data that fits the existing categories."
+  const exampleInstructions = [
+    "Fill in missing values in the 'Price' column based on similar products",
+    "Categorize items in the 'Product' column into Electronics, Clothing, or Home Goods",
+    "Generate detailed product descriptions based on the 'Name' and 'Category' columns",
+    "Standardize price formats in the 'Price' column to always include 2 decimal places",
+    "Generate 10 new rows similar to the existing data but with different product names"
   ];
-
-  const handleGenerateConfig = async () => {
-    if (!description.trim()) {
-      toast.error('Please enter a description of what you want to do');
-      return;
-    }
-
-    setIsGenerating(true);
-    
-    try {
-      // Combine the user's description with the dataset description if provided
-      let fullDescription = description;
-      if (datasetDescription.trim()) {
-        fullDescription = `${description} The dataset represents: ${datasetDescription}`;
-      }
-      
-      const response = await generateConfig(fullDescription, csvColumns);
-      
-      if (response.config) {
-        onConfigGenerated(response.config);
-        toast.success('Configuration generated successfully');
-      } else {
-        toast.error('Failed to generate configuration');
-      }
-    } catch (error) {
-      console.error('Error generating configuration:', error);
-      toast.error('Error generating configuration');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   const handleExampleClick = (example) => {
     setDescription(example);
     setShowExamples(false);
   };
 
-  return (
-    <div className="space-y-4">
-      {/* Feature Explanation Card */}
-      <Card className="bg-blue-50 border-blue-200">
-        <h3 className="font-medium text-blue-800 mb-2">Two Ways to Use This Tool:</h3>
-        <div className="space-y-3 text-sm text-blue-800">
-          <div>
-            <p className="font-medium">1. Process Columns:</p>
-            <p>Enhance existing columns or create new ones with AI-generated content.</p>
-            <p className="italic">Example: "Categorize items in the 'Category' column" or "Add a 'Sentiment' column"</p>
-          </div>
-          <div>
-            <p className="font-medium">2. Generate New Rows:</p>
-            <p>Create new entries that match the patterns in your existing data.</p>
-            <p className="italic">Example: "Only generate 5 new rows" or "Just add 10 new product entries"</p>
-          </div>
-          <div className="mt-1 font-medium">
-            <p>You can use either feature independently or together.</p>
-          </div>
-        </div>
-      </Card>
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!description.trim()) {
+      toast.error('Please enter a description');
+      return;
+    }
+    
+    setIsGenerating(true);
+    
+    try {
+      const response = await generateConfig(description, csvColumns);
+      
+      if (response.success) {
+        onConfigGenerated(response.config);
+        toast.success('Configuration generated successfully');
+      } else {
+        toast.error(response.error || 'Error generating configuration');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error(error.response?.data?.detail || 'Error generating configuration');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          What would you like to do with your CSV data?
-        </label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Describe what you want to do with your data. Be specific about which columns to process or how many rows to generate."
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-32"
-          disabled={isGenerating}
-        />
-        <div className="mt-1 flex justify-between items-center">
-          <div className="text-xs text-gray-500">
-            <p><strong>Important:</strong> Use specific language to control what happens:</p>
-            <ul className="list-disc pl-5 mt-1">
-              <li>For row generation only: Use phrases like "only generate rows" or "just add new rows"</li>
-              <li>For column processing: Specify which columns to modify or create</li>
-            </ul>
-          </div>
+  return (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
+        <h3 className="text-lg font-medium text-gray-800 mb-2">
+          Describe Your Transformation
+        </h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Tell us in plain language what you want to do with your data. You can specify columns to transform, 
+          how to fill missing values, or generate new rows based on existing data.
+        </p>
+        
+        <div className="mb-2 flex justify-between items-center">
+          <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+            Transformation instructions
+          </label>
           <button
             type="button"
+            className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
             onClick={() => setShowExamples(!showExamples)}
-            className="text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap ml-2"
           >
             {showExamples ? 'Hide Examples' : 'Show Examples'}
+            <svg 
+              className={`ml-1 h-4 w-4 transition-transform ${showExamples ? 'rotate-180' : ''}`} 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+            </svg>
           </button>
         </div>
-      </div>
-      
-      {showExamples && (
-        <Card title="Example Instructions" className="mt-2">
-          <div className="mb-2">
-            <h4 className="text-sm font-medium text-gray-700">Column Operations:</h4>
-            <ul className="text-sm space-y-1 mb-3">
-              {examples.slice(0, 9).map((example, index) => (
-                <li key={index} className="hover:bg-gray-50 p-1 rounded cursor-pointer" onClick={() => handleExampleClick(example)}>
-                  • {example}
-                </li>
-              ))}
-            </ul>
-            <h4 className="text-sm font-medium text-gray-700">Row Generation Only:</h4>
-            <ul className="text-sm space-y-1">
-              {examples.slice(9).map((example, index) => (
-                <li key={index + 9} className="hover:bg-gray-50 p-1 rounded cursor-pointer" onClick={() => handleExampleClick(example)}>
-                  • {example}
-                </li>
-              ))}
-            </ul>
+        
+        {showExamples && (
+          <Card className="mb-4 shadow-sm">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">Example instructions:</p>
+              <ul className="space-y-2">
+                {exampleInstructions.map((example, index) => (
+                  <li key={index}>
+                    <button
+                      type="button"
+                      className="text-left w-full px-3 py-2 text-sm rounded-md hover:bg-blue-50 text-gray-700 hover:text-blue-700 transition-colors"
+                      onClick={() => handleExampleClick(example)}
+                    >
+                      {example}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Card>
+        )}
+        
+        <form onSubmit={handleSubmit}>
+          <textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Example: Fill in missing values in the 'Price' column based on similar products, or generate 10 new rows similar to existing data"
+            className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 min-h-[120px] text-gray-700"
+            rows={5}
+          />
+          
+          <div className="mt-4 flex justify-end">
+            <Button
+              type="submit"
+              variant="primary"
+              isLoading={isGenerating}
+              disabled={isGenerating || !description.trim()}
+            >
+              {isGenerating ? 'Generating...' : 'Generate Configuration'}
+            </Button>
           </div>
-        </Card>
-      )}
-      
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Dataset Description (Optional)
-        </label>
-        <textarea
-          value={datasetDescription}
-          onChange={(e) => setDatasetDescription(e.target.value)}
-          placeholder="Describe what this dataset represents (e.g., 'This is a product catalog with items, categories, and prices')"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-24"
-          disabled={isGenerating}
-        />
-        <p className="mt-1 text-xs text-gray-500">
-          Providing context about your dataset helps generate more accurate configurations and data.
-        </p>
+        </form>
       </div>
       
-      <Button
-        onClick={handleGenerateConfig}
-        isLoading={isGenerating}
-        disabled={isGenerating}
-        className="w-full"
-      >
-        Generate Configuration
-      </Button>
+      <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-yellow-800">
+              How to use natural language instructions
+            </h3>
+            <div className="mt-2 text-sm text-yellow-700">
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Be specific about which columns you want to transform</li>
+                <li>Specify how many new rows you want to generate (if any)</li>
+                <li>Describe the relationships between columns if relevant</li>
+                <li>You can review and adjust the generated configuration in the next step</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ColumnConfigForm from './ColumnConfigForm';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
+import { toast } from 'react-hot-toast';
 
 /**
  * Form for manual configuration of columns
@@ -17,83 +18,160 @@ const ManualConfigForm = ({ csvColumns, currentConfig, onConfigUpdate }) => {
   const [showRowGeneration, setShowRowGeneration] = useState(false);
   const [rowsToGenerate, setRowsToGenerate] = useState(5);
   const [datasetDescription, setDatasetDescription] = useState('');
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const [selectedColumnToAdd, setSelectedColumnToAdd] = useState('');
 
   const addColumnConfig = () => {
+    // Show column selector instead of automatically adding the first available column
+    const configuredColumns = Object.keys(currentConfig.column_context || {});
+    const availableColumns = csvColumns.filter(
+      column => !configuredColumns.includes(column)
+    );
+    
+    if (availableColumns.length === 0) {
+      toast.error('All columns have already been configured. You can create a new column instead.');
+      return;
+    }
+    
+    setShowColumnSelector(true);
+    if (availableColumns.length > 0 && !selectedColumnToAdd) {
+      setSelectedColumnToAdd(availableColumns[0]);
+    }
+  };
+  
+  const confirmAddColumnConfig = () => {
     try {
-      // Create a copy of the current configuration
-      const newConfig = { ...currentConfig };
+      console.log('Adding column configuration for:', selectedColumnToAdd);
       
-      // Initialize all configuration objects using the || operator for conciseness
-      newConfig.column_context = newConfig.column_context || {};
-      newConfig.batch_sizes = newConfig.batch_sizes || {};
-      newConfig.ignore_valued_columns = newConfig.ignore_valued_columns || {};
-      newConfig.transformation_instructions = newConfig.transformation_instructions || {};
-      
-      // Find a column that hasn't been configured yet
-      const configuredColumns = Object.keys(newConfig.column_context);
-      const availableColumns = csvColumns.filter(
-        column => !configuredColumns.includes(column)
-      );
-      
-      if (availableColumns.length === 0) {
-        alert('All columns have already been configured. You can create a new column instead.');
+      if (!selectedColumnToAdd) {
+        toast.error('Please select a column to configure');
         return;
       }
       
-      const columnToAdd = availableColumns[0];
+      // Create a deep copy of the current configuration to avoid reference issues
+      const newConfig = JSON.parse(JSON.stringify(currentConfig));
       
-      // Add the column to the configuration with default values
-      newConfig.column_context[columnToAdd] = [];
-      newConfig.batch_sizes[columnToAdd] = 10;
-      newConfig.ignore_valued_columns[columnToAdd] = false;
-      newConfig.transformation_instructions[columnToAdd] = '';
+      // Ensure all configuration objects exist
+      if (!newConfig.column_context) newConfig.column_context = {};
+      if (!newConfig.batch_sizes) newConfig.batch_sizes = {};
+      if (!newConfig.ignore_valued_columns) newConfig.ignore_valued_columns = {};
+      if (!newConfig.transformation_instructions) newConfig.transformation_instructions = {};
+      
+      // Use a subset of columns for context (up to 3 if available)
+      const contextColumnsToUse = csvColumns.length > 0 ? 
+        csvColumns.slice(0, Math.min(3, csvColumns.length)).filter(col => col !== selectedColumnToAdd) : 
+        [];
+        
+      newConfig.column_context[selectedColumnToAdd] = contextColumnsToUse;
+      newConfig.batch_sizes[selectedColumnToAdd] = 10;
+      newConfig.ignore_valued_columns[selectedColumnToAdd] = false;
+      newConfig.transformation_instructions[selectedColumnToAdd] = '';
+      
+      console.log('Added column configuration for:', selectedColumnToAdd);
+      console.log('Updated configuration:', newConfig);
+      
+      // Update the configuration
+      onConfigUpdate(newConfig);
+      
+      // Show confirmation
+      toast.success(`Added column: ${selectedColumnToAdd}`);
+      
+      // Reset state
+      setShowColumnSelector(false);
+      setSelectedColumnToAdd('');
+    } catch (error) {
+      console.error('Error adding column configuration:', error);
+      toast.error('Failed to add column configuration');
+    }
+  };
+  
+  const cancelAddColumnConfig = () => {
+    setShowColumnSelector(false);
+    setSelectedColumnToAdd('');
+  };
+  
+  const removeColumnConfig = (columnName) => {
+    console.log(`Attempting to remove column configuration for: ${columnName}`);
+    
+    // Create a deep copy of the current configuration to avoid reference issues
+    const newConfig = JSON.parse(JSON.stringify(currentConfig));
+    
+    try {
+      // Ensure all configuration objects exist
+      if (!newConfig.column_context) newConfig.column_context = {};
+      if (!newConfig.batch_sizes) newConfig.batch_sizes = {};
+      if (!newConfig.ignore_valued_columns) newConfig.ignore_valued_columns = {};
+      if (!newConfig.transformation_instructions) newConfig.transformation_instructions = {};
+      
+      console.log(`Before removal - column_context keys: ${Object.keys(newConfig.column_context)}`);
+      console.log(`Removing column: ${columnName}`);
+      
+      // Remove the column from all configuration objects
+      if (columnName in newConfig.column_context) {
+        delete newConfig.column_context[columnName];
+        console.log(`Removed ${columnName} from column_context`);
+      }
+      
+      if (columnName in newConfig.batch_sizes) {
+        delete newConfig.batch_sizes[columnName];
+        console.log(`Removed ${columnName} from batch_sizes`);
+      }
+      
+      if (columnName in newConfig.ignore_valued_columns) {
+        delete newConfig.ignore_valued_columns[columnName];
+        console.log(`Removed ${columnName} from ignore_valued_columns`);
+      }
+      
+      if (columnName in newConfig.transformation_instructions) {
+        delete newConfig.transformation_instructions[columnName];
+        console.log(`Removed ${columnName} from transformation_instructions`);
+      }
+      
+      console.log(`After removal - column_context keys: ${Object.keys(newConfig.column_context)}`);
+      console.log('Updated configuration after removal:', newConfig);
+      
+      // Update the configuration
+      onConfigUpdate(newConfig);
+      
+      // Show confirmation
+      toast.success(`Removed column: ${columnName}`);
+    } catch (error) {
+      console.error('Error removing column configuration:', error);
+      toast.error(`Failed to remove column: ${columnName}`);
+    }
+  };
+  
+  const updateColumnConfig = (columnName, contextColumns, batchSize, ignoreValued, transformationInstruction) => {
+    try {
+      console.log(`Updating column configuration for: ${columnName}`);
+      console.log('Context columns:', contextColumns);
+      console.log('Batch size:', batchSize);
+      console.log('Ignore valued:', ignoreValued);
+      console.log('Transformation instruction:', transformationInstruction);
+      
+      // Create a deep copy of the current configuration to avoid reference issues
+      const newConfig = JSON.parse(JSON.stringify(currentConfig));
+      
+      // Ensure all configuration objects exist
+      if (!newConfig.column_context) newConfig.column_context = {};
+      if (!newConfig.batch_sizes) newConfig.batch_sizes = {};
+      if (!newConfig.ignore_valued_columns) newConfig.ignore_valued_columns = {};
+      if (!newConfig.transformation_instructions) newConfig.transformation_instructions = {};
+      
+      // Update the configuration
+      newConfig.column_context[columnName] = contextColumns;
+      newConfig.batch_sizes[columnName] = batchSize;
+      newConfig.ignore_valued_columns[columnName] = ignoreValued;
+      newConfig.transformation_instructions[columnName] = transformationInstruction;
+      
+      console.log('Updated configuration:', newConfig);
       
       // Update the configuration
       onConfigUpdate(newConfig);
     } catch (error) {
-      console.error('Error adding column configuration:', error);
-      alert('An error occurred while adding the column. Please try again.');
+      console.error('Error updating column configuration:', error);
+      toast.error(`Failed to update column: ${columnName}`);
     }
-  };
-  
-  const removeColumnConfig = (columnName) => {
-    // Create a copy of the current configuration
-    const newConfig = { ...currentConfig };
-    
-    // Initialize objects if they don't exist
-    if (!newConfig.column_context) newConfig.column_context = {};
-    if (!newConfig.batch_sizes) newConfig.batch_sizes = {};
-    if (!newConfig.ignore_valued_columns) newConfig.ignore_valued_columns = {};
-    if (!newConfig.transformation_instructions) newConfig.transformation_instructions = {};
-    
-    // Remove the column from all configuration objects
-    delete newConfig.column_context[columnName];
-    delete newConfig.batch_sizes[columnName];
-    delete newConfig.ignore_valued_columns[columnName];
-    delete newConfig.transformation_instructions[columnName];
-    
-    // Update the configuration
-    onConfigUpdate(newConfig);
-  };
-  
-  const updateColumnConfig = (columnName, contextColumns, batchSize, ignoreValued, transformationInstruction) => {
-    // Create a copy of the current configuration
-    const newConfig = { ...currentConfig };
-    
-    // Initialize objects if they don't exist
-    if (!newConfig.column_context) newConfig.column_context = {};
-    if (!newConfig.batch_sizes) newConfig.batch_sizes = {};
-    if (!newConfig.ignore_valued_columns) newConfig.ignore_valued_columns = {};
-    if (!newConfig.transformation_instructions) newConfig.transformation_instructions = {};
-    
-    // Update the configuration
-    newConfig.column_context[columnName] = contextColumns;
-    newConfig.batch_sizes[columnName] = batchSize;
-    newConfig.ignore_valued_columns[columnName] = ignoreValued;
-    newConfig.transformation_instructions[columnName] = transformationInstruction;
-    
-    // Update the configuration
-    onConfigUpdate(newConfig);
   };
 
   const addNewColumn = () => {
@@ -117,22 +195,28 @@ const ManualConfigForm = ({ csvColumns, currentConfig, onConfigUpdate }) => {
     }
     
     try {
-      // Create a copy of the current configuration
-      const newConfig = { ...currentConfig };
+      // Create a deep copy of the current configuration to avoid reference issues
+      const newConfig = JSON.parse(JSON.stringify(currentConfig));
       
-      // Initialize all configuration objects if they don't exist
-      newConfig.column_context = newConfig.column_context || {};
-      newConfig.batch_sizes = newConfig.batch_sizes || {};
-      newConfig.ignore_valued_columns = newConfig.ignore_valued_columns || {};
-      newConfig.transformation_instructions = newConfig.transformation_instructions || {};
+      // Ensure all configuration objects exist
+      if (!newConfig.column_context) newConfig.column_context = {};
+      if (!newConfig.batch_sizes) newConfig.batch_sizes = {};
+      if (!newConfig.ignore_valued_columns) newConfig.ignore_valued_columns = {};
+      if (!newConfig.transformation_instructions) newConfig.transformation_instructions = {};
       
       // Add the new column to the configuration
       // Use a safe subset of columns for context (up to 3 if available)
-      const contextColumnsToUse = csvColumns.length > 0 ? csvColumns.slice(0, Math.min(3, csvColumns.length)) : [];
+      const contextColumnsToUse = csvColumns.length > 0 ? 
+        csvColumns.slice(0, Math.min(3, csvColumns.length)) : 
+        [];
+        
       newConfig.column_context[newColumnName] = contextColumnsToUse;
       newConfig.batch_sizes[newColumnName] = 10;
       newConfig.ignore_valued_columns[newColumnName] = false;
       newConfig.transformation_instructions[newColumnName] = '';
+      
+      console.log('Added new column configuration for:', newColumnName);
+      console.log('Updated configuration:', newConfig);
       
       // Update the configuration
       onConfigUpdate(newConfig);
@@ -140,6 +224,9 @@ const ManualConfigForm = ({ csvColumns, currentConfig, onConfigUpdate }) => {
       // Reset the input and hide the form
       setNewColumnName('');
       setShowNewColumnInput(false);
+      
+      // Show confirmation
+      toast.success(`Added new column: ${newColumnName}`);
     } catch (error) {
       console.error('Error adding new column:', error);
       alert('An error occurred while adding the new column. Please try again.');
@@ -161,34 +248,35 @@ const ManualConfigForm = ({ csvColumns, currentConfig, onConfigUpdate }) => {
       return;
     }
 
-    // Create a copy of the current configuration
-    const newConfig = { ...currentConfig };
-    
-    // Initialize all configuration objects if they don't exist
-    if (!newConfig.column_context) newConfig.column_context = {};
-    if (!newConfig.batch_sizes) newConfig.batch_sizes = {};
-    if (!newConfig.ignore_valued_columns) newConfig.ignore_valued_columns = {};
-    if (!newConfig.transformation_instructions) newConfig.transformation_instructions = {};
-    
-    // Update row generation settings
-    newConfig.generate_rows = rowsToGenerate;
-    newConfig.dataset_description = datasetDescription;
-    
-    // If the user is only generating rows and not processing columns,
-    // make sure the column-related configurations are empty
-    if (Object.keys(newConfig.column_context).length === 0) {
-      newConfig.column_context = {};
-      newConfig.batch_sizes = {};
-      newConfig.ignore_valued_columns = {};
-      newConfig.transformation_instructions = {};
+    try {
+      // Create a deep copy of the current configuration to avoid reference issues
+      const newConfig = JSON.parse(JSON.stringify(currentConfig));
+      
+      // Ensure all configuration objects exist
+      if (!newConfig.column_context) newConfig.column_context = {};
+      if (!newConfig.batch_sizes) newConfig.batch_sizes = {};
+      if (!newConfig.ignore_valued_columns) newConfig.ignore_valued_columns = {};
+      if (!newConfig.transformation_instructions) newConfig.transformation_instructions = {};
+      
+      // Update row generation settings
+      newConfig.generate_rows = rowsToGenerate;
+      newConfig.dataset_description = datasetDescription;
+      
+      console.log('Updated row generation settings:');
+      console.log('Rows to generate:', rowsToGenerate);
+      console.log('Dataset description:', datasetDescription);
+      console.log('Updated configuration:', newConfig);
+      
+      // Update the configuration
+      onConfigUpdate(newConfig);
+      setShowRowGeneration(false);
+      
+      // Show a confirmation message
+      toast.success(`Configuration updated to generate ${rowsToGenerate} new rows`);
+    } catch (error) {
+      console.error('Error updating row generation settings:', error);
+      toast.error('Failed to update row generation settings');
     }
-    
-    // Update the configuration
-    onConfigUpdate(newConfig);
-    setShowRowGeneration(false);
-    
-    // Show a confirmation message
-    alert(`Configuration updated to generate ${rowsToGenerate} new rows. The rows will be generated when you click "Process File".`);
   };
 
   const cancelRowGeneration = () => {
@@ -236,7 +324,7 @@ const ManualConfigForm = ({ csvColumns, currentConfig, onConfigUpdate }) => {
           <div className="border rounded-md p-4 bg-white hover:shadow-md transition-shadow">
             <h4 className="font-medium text-gray-800 mb-2">Configure Existing Column</h4>
             <p className="text-sm text-gray-600 mb-3">
-              Select a column from your CSV file to enhance or transform it.
+              Select a column from your CSV file to enhance or transform values within it.
             </p>
             <Button 
               onClick={addColumnConfig}
@@ -250,7 +338,7 @@ const ManualConfigForm = ({ csvColumns, currentConfig, onConfigUpdate }) => {
           <div className="border rounded-md p-4 bg-white hover:shadow-md transition-shadow">
             <h4 className="font-medium text-gray-800 mb-2">Create New Column</h4>
             <p className="text-sm text-gray-600 mb-3">
-              Create a brand new column that doesn't exist in your original CSV.
+              Create a brand new column that doesn't exist in your original CSV and add values to it.
             </p>
             <Button 
               onClick={toggleNewColumnInput}
@@ -334,6 +422,50 @@ const ManualConfigForm = ({ csvColumns, currentConfig, onConfigUpdate }) => {
               </Button>
               <Button onClick={addNewColumn}>
                 Add Column
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showColumnSelector && (
+        <div className="border rounded-md p-4 bg-blue-50 mt-4">
+          <h3 className="font-medium mb-2">Select Column to Configure</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Choose a column:
+              </label>
+              <select
+                value={selectedColumnToAdd}
+                onChange={(e) => setSelectedColumnToAdd(e.target.value)}
+                className="w-full p-2 border rounded-md"
+              >
+                <option value="">-- Select a column --</option>
+                {csvColumns
+                  .filter(column => !(currentConfig.column_context || {})[column])
+                  .map((column) => (
+                    <option key={column} value={column}>
+                      {column}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="flex space-x-2">
+              <Button 
+                onClick={confirmAddColumnConfig}
+                variant="primary"
+                className="flex-1"
+                disabled={!selectedColumnToAdd}
+              >
+                Confirm
+              </Button>
+              <Button 
+                onClick={cancelAddColumnConfig}
+                variant="secondary"
+                className="flex-1"
+              >
+                Cancel
               </Button>
             </div>
           </div>

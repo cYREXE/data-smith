@@ -9,6 +9,9 @@ load_dotenv()
 
 def generate_config_from_description(description, columns):
     """Generate configuration based on natural language description"""
+    print(f"Generating configuration from description: {description}")
+    print(f"Columns: {columns}")
+    
     client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
     
     prompt = f"""
@@ -83,53 +86,64 @@ def generate_config_from_description(description, columns):
     }}
     """
     
-    response = client.chat.completions.create(
-        model=os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=1000,
-        temperature=0.3
-    )
-    
-    config_text = response.choices[0].message.content
-    
-    # Extract JSON from the response
     try:
-        # Find JSON block in the response
-        start_idx = config_text.find('{')
-        end_idx = config_text.rfind('}') + 1
-        if start_idx >= 0 and end_idx > start_idx:
-            config_json = config_text[start_idx:end_idx]
-            config = json.loads(config_json)
-            
-            # Ensure all required keys exist
-            if "column_context" not in config:
-                config["column_context"] = {}
-            if "batch_sizes" not in config:
-                config["batch_sizes"] = {}
-            if "ignore_valued_columns" not in config:
-                config["ignore_valued_columns"] = {}
-            if "transformation_instructions" not in config:
-                config["transformation_instructions"] = {}
-            if "generate_rows" not in config:
-                config["generate_rows"] = 0
+        response = client.chat.completions.create(
+            model=os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1000,
+            temperature=0.3
+        )
+        
+        config_text = response.choices[0].message.content
+        print(f"Raw response from OpenAI: {config_text}")
+        
+        # Extract JSON from the response
+        try:
+            # Find JSON block in the response
+            start_idx = config_text.find('{')
+            end_idx = config_text.rfind('}') + 1
+            if start_idx >= 0 and end_idx > start_idx:
+                config_json = config_text[start_idx:end_idx]
+                print(f"Extracted JSON: {config_json}")
                 
-            # Check if this is a rows-only configuration
-            if config.get("generate_rows", 0) > 0 and not config.get("column_context", {}):
-                # Make sure all column-related configurations are empty
-                config["column_context"] = {}
-                config["batch_sizes"] = {}
-                config["ignore_valued_columns"] = {}
-                config["transformation_instructions"] = {}
+                config = json.loads(config_json)
+                print(f"Parsed configuration: {config}")
                 
-            return config
-        else:
-            # Default configuration if JSON extraction fails
+                # Ensure all required keys exist
+                if "column_context" not in config:
+                    config["column_context"] = {}
+                if "batch_sizes" not in config:
+                    config["batch_sizes"] = {}
+                if "ignore_valued_columns" not in config:
+                    config["ignore_valued_columns"] = {}
+                if "transformation_instructions" not in config:
+                    config["transformation_instructions"] = {}
+                if "generate_rows" not in config:
+                    config["generate_rows"] = 0
+                    
+                # Check if this is a rows-only configuration
+                if config.get("generate_rows", 0) > 0 and not config.get("column_context", {}):
+                    # Make sure all column-related configurations are empty
+                    config["column_context"] = {}
+                    config["batch_sizes"] = {}
+                    config["ignore_valued_columns"] = {}
+                    config["transformation_instructions"] = {}
+                
+                print(f"Final configuration: {config}")
+                return config
+            else:
+                print("Could not find JSON in response")
+                # Default configuration if JSON extraction fails
+                return create_default_config(columns)
+        except json.JSONDecodeError as e:
+            print(f"JSON decode error: {e}")
+            # Default configuration if JSON parsing fails
             return create_default_config(columns)
-    except json.JSONDecodeError:
-        # Default configuration if JSON parsing fails
+    except Exception as e:
+        print(f"Error generating configuration: {e}")
         return create_default_config(columns)
 
 def create_default_config(columns):
@@ -146,6 +160,7 @@ def create_default_config(columns):
     # We no longer automatically add column configurations
     # This ensures that row-only generation works properly
     
+    print("Created default configuration:", config)
     return config
 
 class CSVEnhancer:

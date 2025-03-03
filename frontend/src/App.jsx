@@ -6,6 +6,9 @@ import CodeBlock from './components/ui/CodeBlock';
 import Card from './components/ui/Card';
 import Button from './components/ui/Button';
 import Tabs from './components/ui/Tabs';
+import Header from './components/ui/Header';
+import Footer from './components/ui/Footer';
+import DisclaimerModal from './components/ui/DisclaimerModal';
 import { processFile, getDownloadUrl } from './services/api';
 import { toast } from 'react-hot-toast';
 
@@ -23,6 +26,8 @@ function App() {
   const [resultFile, setResultFile] = useState('');
   const [processingStatus, setProcessingStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
+  const [pendingDownloadUrl, setPendingDownloadUrl] = useState('');
 
   const handleFileUploaded = (filename, columns) => {
     setCurrentFilename(filename);
@@ -89,6 +94,28 @@ function App() {
     }
   };
 
+  const handleDownloadClick = (url) => {
+    setPendingDownloadUrl(url);
+    setShowDisclaimerModal(true);
+  };
+
+  const handleDisclaimerConfirm = () => {
+    // Proceed with download
+    if (pendingDownloadUrl) {
+      // Create a temporary link and trigger download
+      const link = document.createElement('a');
+      link.href = pendingDownloadUrl;
+      link.setAttribute('download', '');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Reset state
+      setPendingDownloadUrl('');
+      setShowDisclaimerModal(false);
+    }
+  };
+
   const renderStatus = () => {
     switch (processingStatus) {
       case 'processing':
@@ -119,78 +146,100 @@ function App() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">CSV Enhancer</h1>
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <Header />
       
-      <FileUploadForm onFileUploaded={handleFileUploaded} />
-      
-      {csvColumns.length > 0 && (
-        <div className="mb-6">
-          <Card title="Step 2: Configure Enhancement" className="mb-6">
-            <Tabs 
-              tabs={[
-                { id: 'description', label: 'Natural Language' },
-                { id: 'manual', label: 'Manual Configuration' }
-              ]}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-            />
-            
-            <div className="p-4">
-              {activeTab === 'description' ? (
-                <NaturalLanguageForm 
-                  csvColumns={csvColumns}
-                  onConfigGenerated={(config) => {
-                    setCurrentConfig(config);
-                    setActiveTab('manual');
-                  }}
-                />
-              ) : (
-                <ManualConfigForm 
-                  csvColumns={csvColumns}
-                  currentConfig={currentConfig}
-                  onConfigUpdate={handleConfigUpdate}
-                />
-              )}
-            </div>
+      <main className="flex-grow">
+        <div className="container mx-auto px-4 py-8 max-w-4xl">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Data Transformation Tool</h2>
+            <p className="text-gray-600">Transform your CSV data with AI-powered enhancements</p>
+          </div>
+          
+          <Card variant="primary" className="mb-8">
+            <h3 className="text-lg font-medium mb-4">Upload Your Dataset</h3>
+            <FileUploadForm onFileUploaded={handleFileUploaded} />
           </Card>
           
-          <Card title="Configuration Preview" className="mb-6">
-            <CodeBlock content={currentConfig} />
-          </Card>
-          
-          <Button
-            variant="success"
-            onClick={handleProcessFile}
-            isLoading={isProcessing}
-            disabled={isProcessing}
-            className="px-6 py-3 text-lg"
-          >
-            {isProcessing ? 'Processing...' : 'Process CSV'}
-          </Button>
-        </div>
-      )}
-      
-      {showResults && (
-        <Card title="Results">
-          {renderStatus()}
-          
-          {processingStatus === 'success' && resultFile && (
-            <div className="mt-4">
-              <a
-                href={getDownloadUrl(resultFile)}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                download
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                </svg>
-                Download Enhanced CSV
-              </a>
+          {csvColumns.length > 0 && (
+            <div className="space-y-8">
+              <Card title="Configure Transformation" variant="default" className="mb-6">
+                <Tabs 
+                  tabs={[
+                    { id: 'description', label: 'Natural Language' },
+                    { id: 'manual', label: 'Manual Configuration' }
+                  ]}
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                />
+                
+                <div className="p-4">
+                  {activeTab === 'description' ? (
+                    <NaturalLanguageForm 
+                      csvColumns={csvColumns}
+                      onConfigGenerated={(config) => {
+                        setCurrentConfig(config);
+                        setActiveTab('manual');
+                      }}
+                    />
+                  ) : (
+                    <ManualConfigForm 
+                      csvColumns={csvColumns}
+                      currentConfig={currentConfig}
+                      onConfigUpdate={handleConfigUpdate}
+                    />
+                  )}
+                </div>
+              </Card>
+              
+              <Card title="Configuration Preview" variant="secondary" className="mb-6">
+                <CodeBlock content={currentConfig} />
+              </Card>
+              
+              <div className="flex justify-center">
+                <Button
+                  variant="success"
+                  onClick={handleProcessFile}
+                  isLoading={isProcessing}
+                  disabled={isProcessing}
+                  className="px-6 py-3 text-lg"
+                >
+                  {isProcessing ? 'Processing...' : 'Transform Data'}
+                </Button>
+              </div>
             </div>
           )}
-        </Card>
-      )}
+          
+          {showResults && (
+            <Card title="Results" variant="primary" className="mt-8">
+              {renderStatus()}
+              
+              {processingStatus === 'success' && resultFile && (
+                <div className="mt-6 text-center">
+                  <Button
+                    variant="primary"
+                    className="inline-flex items-center px-4 py-2"
+                    onClick={() => handleDownloadClick(getDownloadUrl(resultFile))}
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    Download Transformed CSV
+                  </Button>
+                </div>
+              )}
+            </Card>
+          )}
+        </div>
+      </main>
+      
+      <Footer />
+      
+      <DisclaimerModal 
+        isOpen={showDisclaimerModal}
+        onClose={() => setShowDisclaimerModal(false)}
+        onConfirm={handleDisclaimerConfirm}
+      />
     </div>
   );
 }
